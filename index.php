@@ -140,7 +140,10 @@ define('STAY_SIGNED_IN_TOKEN', sha1($GLOBALS['hash'].$_SERVER["REMOTE_ADDR"].$GL
 autoLocale(); // Sniff browser language and set date format accordingly.
 header('Content-Type: text/html; charset=utf-8'); // We use UTF-8 for proper international characters handling.
 
-// Check PHP version
+/**
+ * Checks if the current PHP version is greater than 5.1.0
+ * If not, outputs an error message then exits
+ */
 function checkphpversion()
 {
     if (version_compare(PHP_VERSION, '5.1.0') < 0) {
@@ -150,10 +153,10 @@ function checkphpversion()
     }
 }
 
-// Checks if an update is available for Shaarli.
-// (at most once a day, and only for registered user.)
-// Output: '' = no new version.
-//         other= the available version.
+/** Checks if an update is available for Shaarli.
+ * (at most once a day, and only for registered users.)
+ * @return string Empty string if there is no new version, or the new version number
+ */
 function checkUpdate()
 {
     if (!isLoggedIn()) {
@@ -179,19 +182,31 @@ function checkUpdate()
     return '';
 }
 
-// -----------------------------------------------------------------------------------------------
-// Simple cache system (mainly for the RSS/ATOM feeds).
-
+/**
+ * Provides caching utilities for pages
+ * Mostly used by the RSS/ATOM feeds
+ */
 class pageCache
 {
-    private $url; // Full URL of the page to cache (typically the value returned by pageUrl())
-    private $shouldBeCached; // boolean: Should this url be cached?
-    private $filename; // Name of the cache file for this url.
+    /**
+     * @var string Full URL of the page to cache
+     */
+    private $url;
 
-    /*
-         $url = URL (typically the value returned by pageUrl())
-         $shouldBeCached = boolean. If false, the cache will be disabled.
-    */
+    /**
+     * @var bool Should this URL be cached ?
+     */
+    private $shouldBeCached;
+
+    /**
+     * @var string Name of the cache file for this URL
+     */
+    private $filename;
+
+    /**
+     * @param string $url URL to cache (typically the value returned by pageUrl())
+     * @param bool $shouldBeCached If set to false, caching will be disabled
+     */
     public function __construct($url, $shouldBeCached)
     {
         $this->url = $url;
@@ -199,22 +214,27 @@ class pageCache
         $this->shouldBeCached = $shouldBeCached;
     }
 
-    // If the page should be cached and a cached version exists,
-    // returns the cached version (otherwise, return null).
+    /**
+     * Retrieves the cached version of this page
+     * @return string|null The cached version of the page if it exists, null otherwise
+     */
     public function cachedVersion()
     {
         if (!$this->shouldBeCached) {
-            return;
+            return null;
         }
         if (is_file($this->filename)) {
             return file_get_contents($this->filename);
             exit;
         }
 
-        return;
+        return null;
     }
 
-    // Put a page in the cache.
+    /**
+     * Add a page to the cache
+     * @param $page Element to ass to the cache
+     */
     public function cache($page)
     {
         if (!$this->shouldBeCached) {
@@ -223,8 +243,9 @@ class pageCache
         file_put_contents($this->filename, $page);
     }
 
-    // Purge the whole cache.
-    // (call with pageCache::purgeCache())
+    /**
+     * Purges the whole cache
+     */
     public static function purgeCache()
     {
         if (is_dir($GLOBALS['config']['PAGECACHE'])) {
@@ -242,28 +263,38 @@ class pageCache
 }
 
 // -----------------------------------------------------------------------------------------------
-// Log to text file
+/**
+ * Log a message to a text file
+ * @example 1970/01/01_00:00:00 - 127.0.0.1 - message
+ * @param string $message Message to log
+ */
 function logm($message)
 {
     $t = strval(date('Y/m/d_H:i:s')).' - '.$_SERVER["REMOTE_ADDR"].' - '.strval($message)."\n";
     file_put_contents($GLOBALS['config']['DATADIR'].'/log.txt', $t, FILE_APPEND);
 }
 
-// Same as nl2br(), but escapes < and >
+/**
+ * Converts newlines to <br> tags and escapes < and >
+ * @param string $html HTML to convert
+ * @return string Modified HTML
+ */
 function nl2br_escaped($html)
 {
     return str_replace('>', '&gt;', str_replace('<', '&lt;', nl2br($html)));
 }
 
-/* Returns the small hash of a string, using RFC 4648 base64url format
-   e.g. smallHash('20111006_131924') --> yZH23w
-   Small hashes:
-     - are unique (well, as unique as crc32, at last)
-     - are always 6 characters long.
-     - only use the following characters: a-z A-Z 0-9 - _ @
-     - are NOT cryptographically secure (they CAN be forged)
-   In Shaarli, they are used as a tinyurl-like link to individual entries.
-*/
+/**
+ * Returns the small hash of a string, using RFC 4648 base64url format
+ * Small hashes:
+ *   - are unique (as unique as a CRC32 can be)
+ *   - are always 6 characters long
+ *   - only uses the following characters: a-z A-Z 0-9 - _ @
+ *   - are NOT cryptographically secure (they can be forged)
+ * @example smallHash('20111006_131924') => yZH23w
+ * @param string $text Text from which to generate the small hash
+ * @return string Resulting small hash
+ */
 function smallHash($text)
 {
     $t = rtrim(base64_encode(hash('crc32', $text, true)), '=');
@@ -271,24 +302,38 @@ function smallHash($text)
     return strtr($t, '+/', '-_');
 }
 
-// In a string, converts URLs to clickable links.
-// Function inspired from http://www.php.net/manual/en/function.preg-replace.php#85722
+/**
+ * Converts URL in a string into clickable links
+ * Supported protocols are https://, http://, ftp://, file://, apt://, magnet://
+ * @example "https://example.org/" => "<a href="https://example.org/" rel="nofollow">https://example.org/</a>"
+ * @param string $url Text to convert
+ * @return string Converted text
+ */
 function text2clickable($url)
 {
     $redir = empty($GLOBALS['redirector']) ? '' : $GLOBALS['redirector'];
 
-    return preg_replace('!(((?:https?|ftp|file)://|apt:|magnet:)\S+[[:alnum:]]/?)!si', '<a href="'.$redir.'$1" rel="nofollow">$1</a>', $url);
+    // TODO: explain that regex ?
+    return preg_replace('!(((?:https?|ftp|file)://|apt:|magnet:)\S+[[:alnum:]]/?)!si',
+                        '<a href="'.$redir.'$1" rel="nofollow">$1</a>', $url);
 }
-
-// This function inserts &nbsp; where relevant so that multiple spaces are properly displayed in HTML
-// even in the absence of <pre>  (This is used in description to keep text formatting)
+/**
+ * Replaces multiple spaces with &nbsp; to preserve formatting once outputted
+ * @param string $text Text to convert
+ * @return string Converted text
+ */
 function keepMultipleSpaces($text)
 {
+    // FIXME: this is ghetto as hell. For example, 4 consecutive spaces will be converted into " &nbsp; &nbsp;", and so on
+    // FIXME: "    " should be converted into "&nbsp;&nbsp;&nbsp ",
     return str_replace('  ', ' &nbsp;', $text);
 }
 // ------------------------------------------------------------------------------------------
-// Sniff browser language to display dates in the right format automatically.
-// (Note that is may not work on your server if the corresponding local is not installed.)
+/**
+ * Sniff browser language to display dates in the right format automatically
+ * This may not work if the corresponding locale is not installed
+ * Defaults to en_US
+ */
 function autoLocale()
 {
     $loc = 'en_US'; // Default if browser does not send HTTP_ACCEPT_LANGUAGE
@@ -303,11 +348,13 @@ function autoLocale()
 }
 
 // ------------------------------------------------------------------------------------------
-// PubSubHubbub protocol support (if enabled)  [UNTESTED]
-// (Source: http://aldarone.fr/les-flux-rss-shaarli-et-pubsubhubbub/ )
 if (!empty($GLOBALS['config']['PUBSUBHUB_URL'])) {
     include './publisher.php';
 }
+/**
+ * Publishes every link on PubSubHubbub
+ * (Source: http://aldarone.fr/les-flux-rss-shaarli-et-pubsubhubbub/ )
+ */
 function pubsubhub()
 {
     if (!empty($GLOBALS['config']['PUBSUBHUB_URL'])) {
@@ -323,7 +370,11 @@ function pubsubhub()
 // ------------------------------------------------------------------------------------------
 // Session management
 
-// Returns the IP address of the client (Used to prevent session cookie hijacking.)
+/**
+ * Returns the IP Address of the client
+ * This prevents session cookie hijacking, and checks both the remote address AND the IP present in other headers
+ * @return string IP of the current user
+ */
 function allIPs()
 {
     $ip = $_SERVER["REMOTE_ADDR"];
@@ -338,6 +389,10 @@ function allIPs()
     return $ip;
 }
 
+/**
+ * Fills the needed session information
+ * An UID is generated automatically, uses the current IP and username and sets the session expiration date
+ */
 function fillSessionInfo()
 {
     $_SESSION['uid'] = sha1(uniqid('', true).'_'.mt_rand()); // Generate unique random number (different than phpsessionid)
@@ -346,7 +401,12 @@ function fillSessionInfo()
     $_SESSION['expires_on'] = time()+INACTIVITY_TIMEOUT;  // Set session expiration.
 }
 
-// Check that user/password is correct.
+/**
+ * Verify that the user/password combination is correct
+ * @param string $login Username
+ * @param string $password Password
+ * @return bool Returns true if the combination is right, false otherwise
+ */
 function check_auth($login, $password)
 {
     $hash = sha1($password.$login.$GLOBALS['salt']);
@@ -361,7 +421,13 @@ function check_auth($login, $password)
     return False;
 }
 
-// Returns true if the user is logged in.
+/**
+ * Checks if the user is logged in
+ * If the OPEN_SHAARLI option is enabled, returns true
+ * If Shaarli hasn't been configured yet, returns false
+ * If the session has expired, returns false
+ * @return bool Returns true if the user is logged in, false otherwise
+ */
 function isLoggedIn()
 {
     if ($GLOBALS['config']['OPEN_SHAARLI']) {
@@ -393,7 +459,9 @@ function isLoggedIn()
     return true;
 }
 
-// Force logout.
+/**
+ * Logs out the user
+ */
 function logout()
 {
     if (isset($_SESSION)) {
@@ -412,7 +480,10 @@ if (!is_file($GLOBALS['config']['IPBANS_FILENAME'])) {
     file_put_contents($GLOBALS['config']['IPBANS_FILENAME'], "<?php\n\$GLOBALS['IPBANS']=".var_export(array('FAILURES' => array(), 'BANS' => array()), true).";\n?>");
 }
 include $GLOBALS['config']['IPBANS_FILENAME'];
-// Signal a failed login. Will ban the IP if too many failures:
+
+/**
+ * Signals a failed login and increases the failed login. After too many failures, the user is banned
+ */
 function ban_loginFailed()
 {
     $ip = $_SERVER["REMOTE_ADDR"];
@@ -429,7 +500,9 @@ function ban_loginFailed()
     file_put_contents($GLOBALS['config']['IPBANS_FILENAME'], "<?php\n\$GLOBALS['IPBANS']=".var_export($gb, true).";\n?>");
 }
 
-// Signals a successful login. Resets failed login counter.
+/**
+ * Signals a successfu l login. Resets the failed login counter.
+ */
 function ban_loginOk()
 {
     $ip = $_SERVER["REMOTE_ADDR"];
@@ -440,7 +513,10 @@ function ban_loginOk()
     file_put_contents($GLOBALS['config']['IPBANS_FILENAME'], "<?php\n\$GLOBALS['IPBANS']=".var_export($gb, true).";\n?>");
 }
 
-// Checks if the user CAN login. If 'true', the user can try to login.
+/**
+ * Checks if the user is allowed to log in (i.e. not banned)
+ * @return bool Returns true if the user is allowed to login, false otherwise
+ */
 function ban_canLogin()
 {
     $ip = $_SERVER["REMOTE_ADDR"];
@@ -463,7 +539,10 @@ function ban_canLogin()
 }
 
 // ------------------------------------------------------------------------------------------
-// Process login form: Check if login/password is correct.
+/**
+ * Processes the login form
+ * Checks if the user is not banned, then if the user/password combination is correct
+ */
 if (isset($_POST['login'])) {
     if (!ban_canLogin()) {
         die('I said: NO. You are banned for the moment. Go away.');
@@ -522,9 +601,12 @@ if (isset($_POST['login'])) {
 // ------------------------------------------------------------------------------------------
 // Misc utility functions:
 
-// Returns the server URL (including port and http/https), without path.
-// e.g. "http://myserver.com:8080"
-// You can append $_SERVER['SCRIPT_NAME'] to get the current script URL.
+/**
+ * Returns the server URL (including port and protocol), without path.
+ * Append $_SERVER['SCRIPT_NAME'] to get the current script url
+ * @example "http://example.org:8080"
+ * @return string Server URL
+ */
 function serverUrl()
 {
     $https = (!empty($_SERVER['HTTPS']) && (strtolower($_SERVER['HTTPS']) == 'on')) || $_SERVER["SERVER_PORT"] == '443'; // HTTPS detection.
@@ -533,8 +615,11 @@ function serverUrl()
     return 'http'.($https ? 's' : '').'://'.$_SERVER['HTTP_HOST'].$serverport;
 }
 
-// Returns the absolute URL of current script, without the query.
-// (e.g. http://sebsauvage.net/links/)
+/**
+ * Returns the absolute URL of the current script, without the query
+ * @example "http://example.org/links/?whatever=true" => "http://example.org/links/"
+ * @return string Absolute URL
+ */
 function indexUrl()
 {
     $scriptname = $_SERVER["SCRIPT_NAME"];
@@ -547,16 +632,26 @@ function indexUrl()
     return serverUrl().$scriptname;
 }
 
-// Returns the absolute URL of current script, WITH the query.
-// (e.g. http://sebsauvage.net/links/?toto=titi&spamspamspam=humbug)
+/**
+ * Returns the absolute URL of the current script, with the query
+ * @example "http://example.org/links/?whatever=true"
+ * @return string
+ */
 function pageUrl()
 {
     return indexUrl().(!empty($_SERVER["QUERY_STRING"]) ? '?'.$_SERVER["QUERY_STRING"] : '');
 }
 
-// Convert post_max_size/upload_max_filesize (e.g. '16M') parameters to bytes.
+/**
+ * Converts $val, a size (e.g. '16M') into bytes
+ * Used for the maximum upload file size
+ * @example '16M' => 16 777 216
+ * @param $val Value to convert
+ * @return int|string Returns the converted size
+ */
 function return_bytes($val)
 {
+    // FIXME: Why does this switch fallthroughs ?
     $val = trim($val);
     $last = strtolower($val[strlen($val)-1]);
     switch ($last) {
@@ -568,8 +663,10 @@ function return_bytes($val)
     return $val;
 }
 
-// Try to determine max file size for uploads (POST).
-// Returns an integer (in bytes)
+/**
+ * Tries to determine the maximum file size for uploads (via POSTing)
+ * @return int Amount of bytes uploadable
+ */
 function getMaxFileSize()
 {
     $size1 = return_bytes(ini_get('post_max_size'));
@@ -580,7 +677,13 @@ function getMaxFileSize()
     return $maxsize;
 }
 
-// Tells if a string start with a substring or not.
+/**
+ * Checks if a $haystack starts with $needle
+ * @param string $haystack String to search into
+ * @param string $needle String to search for
+ * @param bool $case Enable case sensitivity
+ * @return bool True if $needle is present, false otherwise
+ */
 function startsWith($haystack, $needle, $case = true)
 {
     if ($case) {
@@ -590,7 +693,13 @@ function startsWith($haystack, $needle, $case = true)
     return (strcasecmp(substr($haystack, 0, strlen($needle)), $needle) === 0);
 }
 
-// Tells if a string ends with a substring or not.
+/**
+ * Checks if a $haystack ends with $needle
+ * @param string $haystack String to search into
+ * @param string $needle String to search for
+ * @param bool $case Enable case sensitivity
+ * @return bool True if $needle is present, false otherwise
+ */
 function endsWith($haystack, $needle, $case = true)
 {
     if ($case) {
@@ -600,34 +709,46 @@ function endsWith($haystack, $needle, $case = true)
     return (strcasecmp(substr($haystack, strlen($haystack) - strlen($needle)), $needle) === 0);
 }
 
-/*  Converts a linkdate time (YYYYMMDD_HHMMSS) of an article to a timestamp (Unix epoch)
-    (used to build the ADD_DATE attribute in Netscape-bookmarks file)
-    PS: I could have used strptime(), but it does not exist on Windows. I'm too kind. */
+
+/**
+ * Converts a linkdate time (YYYYMMDD_HHMMSS) of an article to a timestamp (UNIX epoch)
+ * @param $linkdate Linkdate to convert
+ * @return int Timestamp
+ */
 function linkdate2timestamp($linkdate)
 {
+    // (used to build the ADD_DATE attribute in Netscape-bookmarks file)
+    //    PS: I could have used strptime(), but it does not exist on Windows. I'm too kind. */
     $Y = $M = $D = $h = $m = $s = 0;
     $r = sscanf($linkdate, '%4d%2d%2d_%2d%2d%2d', $Y, $M, $D, $h, $m, $s);
 
     return mktime($h, $m, $s, $M, $D, $Y);
 }
 
-/*  Converts a linkdate time (YYYYMMDD_HHMMSS) of an article to a RFC822 date.
-    (used to build the pubDate attribute in RSS feed.)  */
+/**
+ * Converts a linkdate (YYYYMMDD_HHMMSS) of an article to a RFC822 date
+ * @param $linkdate Linkdate to convert
+ * @return bool|string Date
+ */
 function linkdate2rfc822($linkdate)
 {
     return date('r', linkdate2timestamp($linkdate)); // 'r' is for RFC822 date format.
 }
 
-/*  Converts a linkdate time (YYYYMMDD_HHMMSS) of an article to a ISO 8601 date.
-    (used to build the updated tags in ATOM feed.)  */
+/**
+ * Converts a linkdate time (YYYYMMDD_HHMMSS) of an article to a ISO 8601 date.
+ * (used to build the updated tags in ATOM feed.)
+ */
 function linkdate2iso8601($linkdate)
 {
     return date('c', linkdate2timestamp($linkdate)); // 'c' is for ISO 8601 date format.
 }
 
-/*  Converts a linkdate time (YYYYMMDD_HHMMSS) of an article to a localized date format.
-    (used to display link date on screen)
-    The date format is automatically chosen according to locale/languages sniffed from browser headers (see autoLocale()). */
+/**
+ * Converts a linkdate time (YYYYMMDD_HHMMSS) of an article to a localized date format.
+ * (used to display link date on screen)
+ * The date format is automatically chosen according to locale/languages sniffed from browser headers (see autoLocale()).
+ */
 function linkdate2locale($linkdate)
 {
     return utf8_encode(strftime('%c', linkdate2timestamp($linkdate))); // %c is for automatic date format according to locale.
@@ -635,7 +756,9 @@ function linkdate2locale($linkdate)
     // the date will not be displayed in the chosen locale, but probably in US notation.
 }
 
-// Parse HTTP response headers and return an associative array.
+/**
+ * Parse HTTP response headers and return an associative array.
+ */
 function http_parse_headers_shaarli($headers)
 {
     $res = array();
@@ -651,18 +774,19 @@ function http_parse_headers_shaarli($headers)
     return $res;
 }
 
-/* GET an URL.
-   Input: $url : URL to get (http://...)
-          $timeout : Network timeout (will wait this many seconds for an anwser before giving up).
-   Output: An array.  [0] = HTTP status message (e.g. "HTTP/1.1 200 OK") or error message
-                      [1] = associative array containing HTTP response headers (e.g. echo getHTTP($url)[1]['Content-Type'])
-                      [2] = data
-    Example: list($httpstatus,$headers,$data) = getHTTP('http://sebauvage.net/');
-             if (strpos($httpstatus,'200 OK')!==false)
-                 echo 'Data type: '.htmlspecialchars($headers['Content-Type']);
-             else
-                 echo 'There was an error: '.htmlspecialchars($httpstatus)
-*/
+/**
+ * GET an URL.
+ * Input: $url : URL to get (http://...)
+ *        $timeout : Network timeout (will wait this many seconds for an anwser before giving up).
+ * Output: An array.  [0] = HTTP status message (e.g. "HTTP/1.1 200 OK") or error message
+ *                    [1] = associative array containing HTTP response headers (e.g. echo getHTTP($url)[1]['Content-Type'])
+ *                    [2] = data
+ * @example list($httpstatus,$headers,$data) = getHTTP('http://sebauvage.net/');
+ *          if (strpos($httpstatus,'200 OK')!==false)
+ *              echo 'Data type: '.htmlspecialchars($headers['Content-Type']);
+ *          else
+ *              echo 'There was an error: '.htmlspecialchars($httpstatus)
+ */
 function getHTTP($url, $timeout = 30)
 {
     try {
@@ -683,8 +807,10 @@ function getHTTP($url, $timeout = 30)
     }
 }
 
-// Extract title from an HTML document.
-// (Returns an empty string if not found.)
+/**
+ * Extract title from an HTML document.
+ * (Returns an empty string if not found.)
+ */
 function html_extract_title($html)
 {
     return preg_match('!<title>(.*?)</title>!is', $html, $matches) ? trim(str_replace("\n", ' ', $matches[1])) : '';
@@ -697,7 +823,9 @@ if (!isset($_SESSION['tokens'])) {
     $_SESSION['tokens'] = array();
 }  // Token are attached to the session.
 
-// Returns a token.
+/**
+ * Returns a token.
+ */
 function getToken()
 {
     $rnd = sha1(uniqid('', true).'_'.mt_rand().$GLOBALS['salt']);  // We generate a random string.
@@ -705,8 +833,10 @@ function getToken()
     return $rnd;
 }
 
-// Tells if a token is OK. Using this function will destroy the token.
-// true=token is OK.
+/**
+ * Tells if a token is OK. Using this function will destroy the token.
+ * @return bool True if the token is good
+ */
 function tokenOk($token)
 {
     if (isset($_SESSION['tokens'][$token])) {
@@ -718,22 +848,31 @@ function tokenOk($token)
 }
 
 // ------------------------------------------------------------------------------------------
-/* This class is in charge of building the final page.
-   (This is basically a wrapper around RainTPL which pre-fills some fields.)
-   p = new pageBuilder;
-   p.assign('myfield','myvalue');
-   p.renderPage('mytemplate');
-
-*/
+/**
+ * This class is in charge of building the final page.
+ * (This is basically a wrapper around RainTPL which pre-fills some fields.)
+ * p = new pageBuilder;
+ * p.assign('myfield','myvalue');
+ * p.renderPage('mytemplate');
+ */
 class pageBuilder
 {
-    private $tpl; // RainTPL template
+    /**
+     * @var RainTPL template
+     */
+    private $tpl;
 
+    /**
+     * Constructor. You do not need to call initialize() before doing anything.
+     */
     public function __construct()
     {
         $this->tpl = false;
     }
 
+    /**
+     * Sets up the RainTPL default variables
+     */
     private function initialize()
     {
         $this->tpl = new RainTPL();
@@ -765,7 +904,9 @@ class pageBuilder
         return;
     }
 
-    // The following assign() method is basically the same as RainTPL (except that it's lazy)
+    /**
+     * Assigns a variable for the RainTPL renderer, and initializes the object if needed
+     */
     public function assign($what, $where)
     {
         if ($this->tpl === false) {
@@ -774,8 +915,10 @@ class pageBuilder
         $this->tpl->assign($what, $where);
     }
 
-    // Render a specific page (using a template).
-    // e.g. pb.renderPage('picwall')
+    /**
+     * Render a specific page (using a template).
+     * e.g. pb.renderPage('picwall')
+     */
     public function renderPage($page)
     {
         if ($this->tpl === false) {
@@ -786,36 +929,58 @@ class pageBuilder
 }
 
 // ------------------------------------------------------------------------------------------
-/* Data storage for links.
-   This object behaves like an associative array.
-   Example:
-      $mylinks = new linkdb();
-      echo $mylinks['20110826_161819']['title'];
-      foreach($mylinks as $link)
-         echo $link['title'].' at url '.$link['url'].' ; description:'.$link['description'];
-
-   Available keys:
-       title : Title of the link
-       url : URL of the link. Can be absolute or relative. Relative URLs are permalinks (e.g.'?m-ukcw')
-       description : description of the entry
-       private : Is this link private? 0=no, other value=yes
-       linkdate : date of the creation of this entry, in the form YYYYMMDD_HHMMSS (e.g.'20110914_192317')
-       tags : tags attached to this entry (separated by spaces)
-
-   We implement 3 interfaces:
-     - ArrayAccess so that this object behaves like an associative array.
-     - Iterator so that this object can be used in foreach() loops.
-     - Countable interface so that we can do a count() on this object.
-*/
+/** Data storage for links.
+ * This object behaves like an associative array.
+ * @example $mylinks = new linkdb();
+ *          echo $mylinks['20110826_161819']['title'];
+ *          foreach($mylinks as $link)
+ *              echo $link['title'].' at url '.$link['url'].' ; description:'.$link['description'];
+ *
+ *   Available keys:
+ *     title : Title of the link
+ * url : URL of the link. Can be absolute or relative. Relative URLs are permalinks (e.g.'?m-ukcw')
+ *     description : description of the entry
+ *     private : Is this link private? 0=no, other value=yes
+ *     linkdate : date of the creation of this entry, in the form YYYYMMDD_HHMMSS (e.g.'20110914_192317')
+ *     tags : tags attached to this entry (separated by spaces)
+ *
+ * We implement 3 interfaces:
+ *   - ArrayAccess so that this object behaves like an associative array.
+ *   - Iterator so that this object can be used in foreach() loops.
+ *   - Countable interface so that we can do a count() on this object.
+ * Any modification to the database has to be saved manually through the savedb() method
+ */
 class linkdb implements Iterator, Countable, ArrayAccess
 {
-    private $links; // List of links (associative array. Key=linkdate (e.g. "20110823_124546"), value= associative array (keys:title,description...)
-    private $urls;  // List of all recorded URLs (key=url, value=linkdate) for fast reserve search (url-->linkdate)
-    private $keys;  // List of linkdate keys (for the Iterator interface implementation)
-    private $position; // Position in the $this->keys array. (for the Iterator interface implementation.)
-    private $loggedin; // Is the user logged in? (used to filter private links)
+    /**
+     * @var array List of links (associative array. Key=linkdate (e.g. "20110823_124546"), value= associative array (keys:title,description...)
+     */
+    private $links;
 
-    // Constructor:
+    /**
+     * @var array List of all recorded URLs (key=url, value=linkdate) for fast reserve search (url-->linkdate)
+     */
+    private $urls;
+
+    /**
+     * @var array List of linkdate keys (for the Iterator interface implementation)
+     */
+    private $keys;
+
+    /**
+     * @var int Position in the $this->keys array. (for the Iterator interface implementation.)
+     */
+    private $position;
+
+    /**
+     * @var bool Is the user logged in? (used to filter private links)
+     */
+    private $loggedin;
+
+    /**
+     * Constructor
+     * @param bool $isLoggedIn Is the user logged in ?
+     */
     public function __construct($isLoggedIn)
     // Input : $isLoggedIn : is the user logged in?
     {
@@ -824,13 +989,19 @@ class linkdb implements Iterator, Countable, ArrayAccess
         $this->readdb();  // Then read it.
     }
 
-    // ---- Countable interface implementation
+    /**
+     * Gets the number of links
+     * @return int Number of links in the database
+     */
     public function count()
     {
         return count($this->links);
     }
 
-    // ---- ArrayAccess interface implementation
+    /**
+     * Sets the value of the element at position $offset
+     * This acts as modifying the database
+     */
     public function offsetSet($offset, $value)
     {
         if (!$this->loggedin) {
@@ -845,10 +1016,19 @@ class linkdb implements Iterator, Countable, ArrayAccess
         $this->links[$offset] = $value;
         $this->urls[$value['url']] = $offset;
     }
+
+    /**
+     * Checks if the element at position $offset exists
+     */
     public function offsetExists($offset)
     {
         return array_key_exists($offset, $this->links);
     }
+
+    /**
+     * Removes the element at position $offset
+     * This acts as deleting a link
+     */
     public function offsetUnset($offset)
     {
         if (!$this->loggedin) {
@@ -858,37 +1038,62 @@ class linkdb implements Iterator, Countable, ArrayAccess
         unset($this->urls[$url]);
         unset($this->links[$offset]);
     }
+
+    /**
+     * Get the element at position $offset
+     */
     public function offsetGet($offset)
     {
         return isset($this->links[$offset]) ? $this->links[$offset] : null;
     }
 
-    // ---- Iterator interface implementation
+    /**
+     * Rewinds the iterator back to the first element
+     */
     public function rewind()
     {
         $this->keys = array_keys($this->links);
         rsort($this->keys);
         $this->position = 0;
-    } // Start over for iteration, ordered by date (latest first).
+    }
+
+    /**
+     * Gets the key at the iterator's current position
+     */
     public function key()
     {
         return $this->keys[$this->position];
-    } // current key
+    }
+
+    /**
+     * Gets the value at the iterator's current position
+     */
     public function current()
     {
         return $this->links[$this->keys[$this->position]];
-    } // current value
+    }
+
+    /**
+     * Moves the iterator to the next element
+     * Does not check if the new element is valid
+     */
     public function next()
     {
         ++$this->position;
-    } // go to next item
+    }
+
+    /**
+     * Checks if the element at the current position exists
+     */
     public function valid()
     {
         return isset($this->keys[$this->position]);
     }    // Check if current position is valid.
 
-    // ---- Misc methods
-    private function checkdb() // Check if db directory and file exists.
+    /**
+     * Check if the database directory and file exists
+     */
+    private function checkdb()
     {
         if (!file_exists($GLOBALS['config']['DATASTORE'])) {
             // Create a dummy database for example.
@@ -902,7 +1107,9 @@ class linkdb implements Iterator, Countable, ArrayAccess
         }
     }
 
-    // Read database from disk to memory
+    /**
+     * Read the database file and insert it into memory
+     */
     private function readdb()
     {
         // Read data
@@ -929,7 +1136,9 @@ class linkdb implements Iterator, Countable, ArrayAccess
         }
     }
 
-    // Save database from memory to disk.
+    /**
+     * Save the database from memory to disk
+     */
     public function savedb()
     {
         if (!$this->loggedin) {
@@ -939,7 +1148,9 @@ class linkdb implements Iterator, Countable, ArrayAccess
         invalidateCaches();
     }
 
-    // Returns the link for a given URL (if it exists). False if it does not exist.
+    /**
+     * Gets the link for the small hash $url
+     */
     public function getLinkFromUrl($url)
     {
         if (isset($this->urls[$url])) {
@@ -949,8 +1160,10 @@ class linkdb implements Iterator, Countable, ArrayAccess
         return false;
     }
 
-    // Case insensitive search among links (in the URLs, title and description). Returns filtered list of links.
-    // e.g. print_r($mydb->filterFulltext('hollandais'));
+    /**
+     * Case insensitive search among all the links (in the URL, title and description)
+     * @return array Filtered and sorted list of links
+     */
     public function filterFulltext($searchterms)
     {
         // FIXME: explode(' ',$searchterms) and perform a AND search.
@@ -971,9 +1184,10 @@ class linkdb implements Iterator, Countable, ArrayAccess
         return $filtered;
     }
 
-    // Filter by tag.
-    // You can specify one or more tags (tags can be separated by space or comma).
-    // e.g. print_r($mydb->filterTags('linux programming'));
+    /**
+     * Retrieves the links matching the tags in $tags
+     * Tags can be separated by space or a comma
+     */
     public function filterTags($tags, $casesensitive = false)
     {
         $t = str_replace(',', ' ', ($casesensitive ? $tags : strtolower($tags)));
@@ -990,9 +1204,9 @@ class linkdb implements Iterator, Countable, ArrayAccess
         return $filtered;
     }
 
-    // Filter by day. Day must be in the form 'YYYYMMDD' (e.g. '20120125')
-    // Sort order is: older articles first.
-    // e.g. print_r($mydb->filterDay('20120125'));
+    /**
+     * Retrieves the links matching the date $day, formatted like YYYYMMDD
+     */
     public function filterDay($day)
     {
         $filtered = array();
@@ -1005,8 +1219,10 @@ class linkdb implements Iterator, Countable, ArrayAccess
 
         return $filtered;
     }
-    // Filter by smallHash.
-    // Only 1 article is returned.
+
+    /**
+     * Retrieves the link matching the small hash $smallHash
+     */
     public function filterSmallHash($smallHash)
     {
         $filtered = array();
@@ -1023,8 +1239,9 @@ class linkdb implements Iterator, Countable, ArrayAccess
         return $filtered;
     }
 
-    // Returns the list of all tags
-    // Output: associative array key=tags, value=0
+    /**
+     * Returns the list of all the existing tags
+     */
     public function allTags()
     {
         $tags = array();
@@ -1039,8 +1256,9 @@ class linkdb implements Iterator, Countable, ArrayAccess
         return $tags;
     }
 
-    // Returns the list of days containing articles (oldest first)
-    // Output: An array containing days (in format YYYYMMDD).
+    /**
+     * Returns the list of days having a link posted
+     */
     public function days()
     {
         $linkdays = array();
@@ -1055,7 +1273,11 @@ class linkdb implements Iterator, Countable, ArrayAccess
 }
 
 // ------------------------------------------------------------------------------------------
-// Output the last N links in RSS 2.0 format.
+/**
+ * Outputs the last N links to an RSS feed
+ * Default value for N is 50, can be set with the ?nb= parameter
+ * You can specify search terms with ?searchterm and search tags with ?searchtags
+ */
 function showRSS()
 {
     header('Content-Type: application/rss+xml; charset=utf-8');
@@ -1151,7 +1373,11 @@ function showRSS()
 }
 
 // ------------------------------------------------------------------------------------------
-// Output the last N links in ATOM format.
+/**
+ * Outputs the last N links to an ATOM feed
+ * Default value for N is 50, can be set with the ?nb= parameter
+ * You can specify search terms with ?searchterm and search tags with ?searchtags
+ */
 function showATOM()
 {
     header('Content-Type: application/atom+xml; charset=utf-8');
@@ -1260,9 +1486,9 @@ function showATOM()
 }
 
 // ------------------------------------------------------------------------------------------
-// Daily RSS feed: 1 RSS entry per day giving all the links on that day.
-// Gives the last 7 days (which have links).
-// This RSS feed cannot be filtered.
+/**
+ * Outputs an RSS feed containing 7 entries, one for each preceding day, each one containing all the links for that day
+ */
 function showDailyRSS()
 {
     // Cache system
@@ -1345,7 +1571,9 @@ function showDailyRSS()
     exit;
 }
 
-// "Daily" page.
+/**
+ * Show the "daily" page
+ */
 function showDaily()
 {
     $LINKSDB = new linkdb(isLoggedIn() || $GLOBALS['config']['OPEN_SHAARLI']);  // Read links from database (and filter private links if used it not logged in).
@@ -1420,7 +1648,10 @@ function showDaily()
 }
 
 // ------------------------------------------------------------------------------------------
-// Render HTML page (according to URL parameters and user rights)
+/**
+ * Render the current page
+ * Picks the right page according to session information and URL
+ */
 function renderPage()
 {
     $LINKSDB = new linkdb(isLoggedIn() || $GLOBALS['config']['OPEN_SHAARLI']);  // Read links from database (and filter private links if used it not logged in).
@@ -1980,7 +2211,9 @@ HTML;
 }
 
 // -----------------------------------------------------------------------------------------------
-// Process the import file form.
+/**
+ * Process the import file form
+ */
 function importFile()
 {
     if (!(isLoggedIn() || $GLOBALS['config']['OPEN_SHAARLI'])) {
@@ -2073,8 +2306,9 @@ function importFile()
 }
 
 // -----------------------------------------------------------------------------------------------
-// Template for the list of links (<div id="linklist">)
-// This function fills all the necessary fields in the $PAGE for the template 'linklist.html'
+/**
+ * Sets up RainTPL for the rendering of the link list.
+ */
 function buildLinkList($PAGE, $LINKSDB)
 {
     // ---- Filter link database according to parameters
@@ -2191,15 +2425,17 @@ function buildLinkList($PAGE, $LINKSDB)
     return;
 }
 
-// Compute the thumbnail for a link.
-//
-// With a link to the original URL.
-// Understands various services (youtube.com...)
-// Input: $url = URL for which the thumbnail must be found.
-//        $href = if provided, this URL will be followed instead of $url
-// Returns an associative array with thumbnail attributes (src,href,width,height,style,alt)
-// Some of them may be missing.
-// Return an empty array if no thumbnail available.
+/**
+ * Compute the thumbnail for a link.
+ *
+ * With a link to the original URL.
+ * Understands various services (youtube.com...)
+ * Input: $url = URL for which the thumbnail must be found.
+ *        $href = if provided, this URL will be followed instead of $url
+ * Returns an associative array with thumbnail attributes (src,href,width,height,style,alt)
+ * Some of them may be missing.
+ * Return an empty array if no thumbnail available.
+ */
 function computeThumbnail($url, $href = false)
 {
     if (!$GLOBALS['config']['ENABLE_THUMBNAILS']) {
@@ -2331,12 +2567,14 @@ function computeThumbnail($url, $href = false)
     return array(); // No thumbnail.
 }
 
-// Returns the HTML code to display a thumbnail for a link
-// with a link to the original URL.
-// Understands various services (youtube.com...)
-// Input: $url = URL for which the thumbnail must be found.
-//        $href = if provided, this URL will be followed instead of $url
-// Returns '' if no thumbnail available.
+/**
+ * Returns the HTML code to display a thumbnail for a link
+ * with a link to the original URL.
+ * Understands various services (youtube.com...)
+ * Input: $url = URL for which the thumbnail must be found.
+ *        $href = if provided, this URL will be followed instead of $url
+ * Returns '' if no thumbnail available.
+ */
 function thumbnail($url, $href = false)
 {
     $t = computeThumbnail($url, $href);
@@ -2362,12 +2600,14 @@ function thumbnail($url, $href = false)
     return $html;
 }
 
-// Returns the HTML code to display a thumbnail for a link
-// for the picture wall (using lazy image loading)
-// Understands various services (youtube.com...)
-// Input: $url = URL for which the thumbnail must be found.
-//        $href = if provided, this URL will be followed instead of $url
-// Returns '' if no thumbnail available.
+/**
+ * Returns the HTML code to display a thumbnail for a link
+ * for the picture wall (using lazy image loading)
+ * Understands various services (youtube.com...)
+ * Input: $url = URL for which the thumbnail must be found.
+ *        $href = if provided, this URL will be followed instead of $url
+ * Returns '' if no thumbnail available.
+ */
 function lazyThumbnail($url, $href = false)
 {
     $t = computeThumbnail($url, $href);
@@ -2418,8 +2658,10 @@ function lazyThumbnail($url, $href = false)
 }
 
 // -----------------------------------------------------------------------------------------------
-// Installation
-// This function should NEVER be called if the file data/config.php exists.
+/**
+ * Installation
+ * This function should NEVER be called if the file data/config.php exists.
+ */
 function install()
 {
     // On free.fr host, make sure the /sessions directory exists, otherwise login will not work.
@@ -2478,11 +2720,13 @@ function install()
     exit;
 }
 
-// Generates the timezone selection form and JavaScript.
-// Input: (optional) current timezone (can be 'UTC/UTC'). It will be pre-selected.
-// Output: array(html,js)
-// Example: list($htmlform,$js) = templateTZform('Europe/Paris');  // Europe/Paris pre-selected.
-// Returns array('','') if server does not support timezones list. (e.g. PHP 5.1 on free.fr)
+/**
+ * Generates the timezone selection form and JavaScript.
+ * Input: (optional) current timezone (can be 'UTC/UTC'). It will be pre-selected.
+ * Output: array(html,js)
+ * Example: list($htmlform,$js) = templateTZform('Europe/Paris');  // Europe/Paris pre-selected.
+ * Returns array('','') if server does not support timezones list. (e.g. PHP 5.1 on free.fr)
+ */
 function templateTZform($ptz = false)
 {
     if (function_exists('timezone_identifiers_list')) {
@@ -2538,9 +2782,11 @@ function templateTZform($ptz = false)
     return array('','');
 }
 
-// Tells if a timezone is valid or not.
-// If not valid, returns false.
-// If system does not support timezone list, returns false.
+/**
+ * Tells if a timezone is valid or not.
+ * If not valid, returns false.
+ * If system does not support timezone list, returns false.
+ */
 function isTZvalid($continent, $city)
 {
     $tz = $continent.'/'.$city;
@@ -2592,8 +2838,10 @@ if (!function_exists('json_encode')) {
     }
 }
 
-// Webservices (for use with jQuery/jQueryUI)
-// e.g. index.php?ws=tags&term=minecr
+/**
+ * Process Webservices (for use with jQuery/jQueryUI)
+ * e.g. index.php?ws=tags&term=minecr
+ */
 function processWS()
 {
     if (empty($_GET['ws']) || empty($_GET['term'])) {
@@ -2641,10 +2889,12 @@ function processWS()
     }
 }
 
-// Re-write configuration file according to globals.
-// Requires some $GLOBALS to be set (login,hash,salt,title).
-// If the config file cannot be saved, an error message is displayed and the user is redirected to "Tools" menu.
-// (otherwise, the function simply returns.)
+/**
+ * Re-write configuration file according to globals.
+ * Requires some $GLOBALS to be set (login,hash,salt,title).
+ * If the config file cannot be saved, an error message is displayed and the user is redirected to "Tools" menu.
+ * (otherwise, the function simply returns.)
+ */
 function writeConfig()
 {
     if (is_file($GLOBALS['config']['CONFIG_FILE']) && !isLoggedIn()) {
@@ -2664,14 +2914,15 @@ function writeConfig()
     }
 }
 
-/* Because some f*cking services like flickr require an extra HTTP request to get the thumbnail URL,
+/**
+ * Because some f*cking services like flickr require an extra HTTP request to get the thumbnail URL,
    I have deported the thumbnail URL code generation here, otherwise this would slow down page generation.
    The following function takes the URL a link (e.g. a flickr page) and return the proper thumbnail.
-   This function is called by passing the URL:
-   http://mywebsite.com/shaarli/?do=genthumbnail&hmac=[HMAC]&url=[URL]
-   [URL] is the URL of the link (e.g. a flickr page)
-   [HMAC] is the signature for the [URL] (so that these URL cannot be forged).
-   The function below will fetch the image from the webservice and store it in the cache.
+ * This function is called by passing the URL:
+ * http://mywebsite.com/shaarli/?do=genthumbnail&hmac=[HMAC]&url=[URL]
+ * [URL] is the URL of the link (e.g. a flickr page)
+ * [HMAC] is the signature for the [URL] (so that these URL cannot be forged).
+ * The function below will fetch the image from the webservice and store it in the cache.
 */
 function genThumbnail()
 {
@@ -2832,8 +3083,10 @@ function genThumbnail()
     echo $blankgif;
 }
 
-// Make a thumbnail of the image (to width: 120 pixels)
-// Returns true if success, false otherwise.
+/**
+ * Make a thumbnail of the image (to width: 120 pixels)
+ * Returns true if success, false otherwise.
+ */
 function resizeImage($filepath)
 {
     if (!function_exists('imagecreatefromjpeg')) {
@@ -2882,8 +3135,10 @@ function resizeImage($filepath)
     return true;
 }
 
-// Invalidate caches when the database is changed or the user logs out.
-// (e.g. tags cache).
+/**
+ * Invalidate caches when the database is changed or the user logs out.
+ * (e.g. tags cache).
+ */
 function invalidateCaches()
 {
     unset($_SESSION['tags']);  // Purge cache attached to session.
