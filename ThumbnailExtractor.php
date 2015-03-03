@@ -78,10 +78,13 @@ class ThumbnailExtractor {
      */
 	function extract_images($url) {
         $files = array();
+        list($response, $mime_type, $is_compressed) = $this->get_url($url);
 
         // We've covered the case where the data might be compressed.
         // All that's left is direct linking to a resource.
-        if ($mime_type !== "text/html" && !$is_compressed) {
+        if ($mime_type !== "text/html" &&
+            $mime_type !== "application/xml" &&
+            !$is_compressed) {
 			$item = new stdClass;
 			$item->url = $url;
 			$item->score = strpos($mime_type, 'image') === 0 ? 1 : 0; 
@@ -262,3 +265,4 @@ echo "</pre>";
 
 $end = microtime(true);
 echo "Time spent: " . ($end - $start) . ' seconds (' . $start . ' --> ' .$end .')';
+echo "Surface checking is " . (isset($_GET['surface']) ? "enabled" : "disabled");
